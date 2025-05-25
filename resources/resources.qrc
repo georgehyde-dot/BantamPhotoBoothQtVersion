@@ -1,0 +1,16 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource prefix="/">
+    <file alias="weapon1.jpg">images//weapons/weapon1.jpg</file>
+    <file alias="weapon2.jpg">images/weapons/weapon2.jpg</file>
+    <file alias="weapon3.jpg">images/weapons/weapon3.jpg</file>
+    <file alias="weapon4.jpg">images/weapons/weapon4.jpg</file>
+    <file alias="land1.jpg">images/lands/land1.jpg</file>
+    <file alias="land2.jpg">images/lands/land2.jpg</file>
+    <file alias="land3.jpg">images/lands/land3.jpg</file>
+    <file alias="land4.jpg">images/lands/land4.jpg</file>
+    <file alias="companion1.jpg">images/companions/companion1.jpg</file>
+    <file alias="companion2.jpg">images/companions/companion2.jpg</file>
+    <file alias="companion3.jpg">images/companions/companion3.jpg</file>
+    <file alias="companion4.jpg">images/companions/companion4.jpg</file>
+</qresource>
+</RCC>

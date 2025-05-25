@@ -1,0 +1,35 @@
+# Build artifacts
+/build
+/out
+/bin
+/lib
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# CMake-specific files
+/CMakeCache.txt
+/CMakeFiles/
+/cmake_install.cmake
+
+# IDE-specific files (adjust as needed)
+.vscode/
+.idea/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.user
+*.suo
+
+# System files
+.DS_Store
+
+# vcpkg related files
+vcpkg_installed/
+
+
+# images
+
+/resources/images
