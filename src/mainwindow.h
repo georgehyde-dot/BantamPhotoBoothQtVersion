@@ -7,6 +7,7 @@
 #include <QString>
 #include <QPixmap>
 #include <qwidget.h>
+#include <QTimer>
 
 class QStackedWidget;
 class QPushButton;
@@ -15,6 +16,7 @@ class QLineEdit;
 class QVBoxLayout;
 class QHBoxLayout;
 class QPixmap;
+class ICamera;
 
 struct PhotoSessionData;
 
@@ -33,14 +35,22 @@ private slots:
     void onLandSelected(const QString& landId);
     void onCompanionSelected(const QString& companionId);
     void onNameSubmitButtonClicked();
+    
+    // Camera slots
+    void onTakePhotoButtonClicked();
+    void onRetakeButtonClicked();
+    void onCountdownTick();
+    void onCameraPhotoReady(const QPixmap& photo, const QString& filePath);
+    void onCameraError(const QString& errorMessage);
 
 private:
     void setupUi();
+    void setupCamera();
+    
+    // Screen creators
     QWidget* createStartScreen();
-    QWidget* createWeaponChoiceScreen();
-    QWidget* createLandChoiceScreen();
-    QWidget* createCompanionChoiceScreen();
     QWidget* createNameEntryScreen();
+    QWidget* createCameraScreen();
 
     QWidget* createChoiceScreen(
                                 const QString& title, 
@@ -48,6 +58,12 @@ private:
                                 int itemCount, 
                                 const char* slot);
     
+    // Camera functionality
+    void startCameraPreview();
+    void stopCameraPreview();
+    void startCountdown();
+    void stopCountdown();
+    void capturePhoto();
 
     // Session Management
     void startNewSession();
@@ -64,6 +80,13 @@ private:
     // Name Entry Screen
     QLineEdit *m_nameLineEdit;
     QPushButton *m_submitNameButton;
+    
+    // Camera Screen
+    QWidget *m_cameraPreviewWidget;
+    QLabel *m_countdownLabel;
+    QPushButton *m_takePhotoButton;
+    QPushButton *m_retakeButton;
+    QLabel *m_capturedPhotoLabel;
 
     // Pointers to screen widgets for QStackedWidget
     QWidget *m_startScreenWidget;
@@ -71,6 +94,13 @@ private:
     QWidget *m_landChoiceScreenWidget;
     QWidget *m_companionChoiceScreenWidget;
     QWidget *m_nameEntryScreenWidget;
+    QWidget *m_cameraScreenWidget;
+
+    // Camera system
+    std::unique_ptr<ICamera> m_camera;
+    QTimer *m_countdownTimer;
+    int m_countdownValue;
+    static const int COUNTDOWN_SECONDS = 3;
 
     // Persistent Data (Loaded once)
     std::map<QString, QPixmap> m_selectableImages;

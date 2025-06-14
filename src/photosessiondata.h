@@ -11,6 +11,7 @@ struct PhotoSessionData {
     QString chosenLandId;
     QString chosenCompanionId;
     QString userName;
+    QString capturedPhotoPath;
 
     PhotoSessionData() {
         startTime = QDateTime::currentDateTime();
@@ -22,6 +23,7 @@ struct PhotoSessionData {
                  << "Weapon:" << chosenWeaponId
                  << "Land:" << chosenLandId
                  << "Companion:" << chosenCompanionId
+                 << "Photo:" << (capturedPhotoPath.isEmpty() ? "[None]" : capturedPhotoPath)
                  << "destroyed.";
     }
 
@@ -33,6 +35,7 @@ struct PhotoSessionData {
         chosenCompanionId.clear();
         chosenLandId.clear();
         userName.clear();
+        capturedPhotoPath.clear();
     }
 };
 

@@ -18,18 +18,48 @@
 #include <QScreen>
 #include <QString>
 #include <QWidget>
+#include "camerafactory.h"
+#include "icamera.h"
+#include <QTimer>
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent) {
-    loadPersistentChoiceImages();
+    : QMainWindow(parent),
+    m_countdownTimer(new QTimer(this)),
+    m_countdownValue(0) {
+        loadPersistentChoiceImages();
+        setupCamera();
+        setupUi();
+        setWindowTitle("Qt Photo Booth");
 
-    setupUi();
-    setWindowTitle("Qt Photo Booth");
-}
+    }
+
 
 MainWindow::~MainWindow() {
     // m_currentSessionData unique_ptr will automatically delete the object if it holds one.
     // Qt's parent-child system will delete UI widgets.
+    if (m_camera) {
+        m_camera->stopPreview();
+        m_camera->cleanup();
+    }
+}
+
+void MainWindow::setupCamera() {
+    m_camera = CameraFactory::createCamera(CameraFactory::AUTO_DETECT, this);
+    
+    if (!m_camera->initialize()) {
+        qWarning() << "Failed to initialize camera, falling back to mock camera";
+        m_camera = CameraFactory::createCamera(CameraFactory::MOCK_CAMERA, this);
+        if (!m_camera->initialize()) {
+            qCritical() << "Failed to initialize even mock camera!";
+        }
+    }
+    
+    // Connect camera signals
+    connect(m_camera.get(), &ICamera::photoReady, this, &MainWindow::onCameraPhotoReady);
+    connect(m_camera.get(), &ICamera::captureError, this, &MainWindow::onCameraError);
+    
+    // Setup countdown timer
+    connect(m_countdownTimer, &QTimer::timeout, this, &MainWindow::onCountdownTick);
 }
 
 void MainWindow::loadPersistentChoiceImages() {
@@ -68,12 +98,14 @@ void MainWindow::setupUi() {
     m_landChoiceScreenWidget = createChoiceScreen("Choose Your Land", "land", 4, SLOT(onLandSelected(QString)));
     m_companionChoiceScreenWidget = createChoiceScreen("Choose Your Companion", "companion", 4, SLOT(onCompanionSelected(QString)));
     m_nameEntryScreenWidget = createNameEntryScreen();
+    m_cameraScreenWidget = createCameraScreen(); 
 
     m_stackedWidget->addWidget(m_startScreenWidget);
     m_stackedWidget->addWidget(m_weaponChoiceScreenWidget);
     m_stackedWidget->addWidget(m_landChoiceScreenWidget);
     m_stackedWidget->addWidget(m_companionChoiceScreenWidget);
     m_stackedWidget->addWidget(m_nameEntryScreenWidget);
+    m_stackedWidget->addWidget(m_cameraScreenWidget);
 
     setCentralWidget(m_stackedWidget);
     m_stackedWidget->setCurrentWidget(m_startScreenWidget); 
@@ -199,6 +231,153 @@ QWidget* MainWindow::createNameEntryScreen() {
     return widget;
 }
 
+QWidget* MainWindow::createCameraScreen() {
+    QWidget *widget = new QWidget();
+    QVBoxLayout *mainLayout = new QVBoxLayout(widget);
+    mainLayout->setContentsMargins(20, 20, 20, 20);
+    mainLayout->setSpacing(20);
+
+    // Get camera preview widget
+    m_cameraPreviewWidget = m_camera->getPreviewWidget();
+    m_cameraPreviewWidget->setMinimumSize(640, 480);
+    m_cameraPreviewWidget->setStyleSheet("border: 2px solid #333; background-color: black;");
+
+    // Countdown label (overlay on preview)
+    m_countdownLabel = new QLabel(widget);
+    m_countdownLabel->setAlignment(Qt::AlignCenter);
+    m_countdownLabel->setStyleSheet(
+        "QLabel { "
+        "color: white; "
+        "background-color: rgba(0, 0, 0, 128); "
+        "border-radius: 50px; "
+        "font-size: 72px; "
+        "font-weight: bold; "
+        "min-width: 100px; "
+        "min-height: 100px; "
+        "}"
+    );
+    m_countdownLabel->hide();
+
+    // Captured photo display (hidden initially)
+    m_capturedPhotoLabel = new QLabel(widget);
+    m_capturedPhotoLabel->setAlignment(Qt::AlignCenter);
+    m_capturedPhotoLabel->setMinimumSize(640, 480);
+    m_capturedPhotoLabel->setStyleSheet("border: 2px solid #333;");
+    m_capturedPhotoLabel->hide();
+
+    // Buttons
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    
+    m_takePhotoButton = new QPushButton("Take Photo", widget);
+    m_takePhotoButton->setMinimumSize(200, 80);
+    m_takePhotoButton->setStyleSheet(
+        "QPushButton { "
+        "background-color: #4CAF50; "
+        "color: white; "
+        "border: none; "
+        "border-radius: 10px; "
+        "font-size: 18px; "
+        "font-weight: bold; "
+        "} "
+        "QPushButton:pressed { background-color: #45a049; }"
+    );
+    connect(m_takePhotoButton, &QPushButton::clicked, this, &MainWindow::onTakePhotoButtonClicked);
+
+    m_retakeButton = new QPushButton("Retake", widget);
+    m_retakeButton->setMinimumSize(150, 80);
+    m_retakeButton->setStyleSheet(
+        "QPushButton { "
+        "background-color: #f44336; "
+        "color: white; "
+        "border: none; "
+        "border-radius: 10px; "
+        "font-size: 18px; "
+        "} "
+        "QPushButton:pressed { background-color: #da190b; }"
+    );
+    m_retakeButton->hide(); // Hidden until photo is taken
+    connect(m_retakeButton, &QPushButton::clicked, this, &MainWindow::onRetakeButtonClicked);
+
+    QPushButton *continueButton = new QPushButton("Continue", widget);
+    continueButton->setMinimumSize(150, 80);
+    continueButton->setStyleSheet(
+        "QPushButton { "
+        "background-color: #2196F3; "
+        "color: white; "
+        "border: none; "
+        "border-radius: 10px; "
+        "font-size: 18px; "
+        "} "
+        "QPushButton:pressed { background-color: #1976D2; }"
+    );
+    continueButton->hide(); // Hidden until photo is taken
+    connect(continueButton, &QPushButton::clicked, this, &MainWindow::returnToStartScreen);
+
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(m_takePhotoButton);
+    buttonLayout->addWidget(m_retakeButton);
+    buttonLayout->addWidget(continueButton);
+    buttonLayout->addStretch();
+
+    // Layout assembly
+    mainLayout->addWidget(m_cameraPreviewWidget);
+    mainLayout->addWidget(m_capturedPhotoLabel);
+    mainLayout->addLayout(buttonLayout);
+
+    // Position countdown label as overlay
+    m_countdownLabel->setParent(widget);
+    m_countdownLabel->raise();
+
+    return widget;
+}
+
+void MainWindow::startCameraPreview() {
+    if (m_camera) {
+        m_camera->startPreview();
+        m_cameraPreviewWidget->show();
+        m_capturedPhotoLabel->hide();
+        m_takePhotoButton->show();
+        m_retakeButton->hide();
+    }
+}
+
+void MainWindow::stopCameraPreview() {
+    if (m_camera) {
+        m_camera->stopPreview();
+    }
+    stopCountdown();
+}
+
+void MainWindow::startCountdown() {
+    m_countdownValue = COUNTDOWN_SECONDS;
+    m_countdownLabel->setText(QString::number(m_countdownValue));
+    m_countdownLabel->show();
+    
+    // Position countdown label in center of preview widget
+    QRect previewRect = m_cameraPreviewWidget->geometry();
+    int labelSize = 100;
+    m_countdownLabel->setGeometry(
+        previewRect.x() + (previewRect.width() - labelSize) / 2,
+        previewRect.y() + (previewRect.height() - labelSize) / 2,
+        labelSize, labelSize
+    );
+    
+    m_countdownTimer->start(1000); // 1 second intervals
+    m_takePhotoButton->setEnabled(false);
+}
+
+void MainWindow::stopCountdown() {
+    m_countdownTimer->stop();
+    m_countdownLabel->hide();
+    m_takePhotoButton->setEnabled(true);
+}
+
+void MainWindow::capturePhoto() {
+    if (m_camera) {
+        m_camera->capturePhoto();
+    }
+}
+
 // --- SLOTS ---
 void MainWindow::onStartButtonClicked() {
     qDebug() << "Start button clicked.";
@@ -248,8 +427,109 @@ void MainWindow::onNameSubmitButtonClicked() {
                  << ", Companion -" << m_currentSessionData->chosenCompanionId
                  << ", Started at -" << m_currentSessionData->startTime.toString();
     }
-    returnToStartScreen();
+    m_stackedWidget->setCurrentIndex(5);
+    startCameraPreview();
 }
+
+void MainWindow::onTakePhotoButtonClicked() {
+    qDebug() << "Take photo button clicked";
+    startCountdown();
+}
+
+void MainWindow::onRetakeButtonClicked() {
+    qDebug() << "Retake button clicked";
+    startCameraPreview();
+}
+
+void MainWindow::onCountdownTick() {
+    m_countdownValue--;
+    
+    if (m_countdownValue > 0) {
+        m_countdownLabel->setText(QString::number(m_countdownValue));
+    } else {
+        // Countdown finished, take photo
+        stopCountdown();
+        m_countdownLabel->setText("📸");
+        m_countdownLabel->show();
+        
+        // Brief delay to show camera icon, then capture
+        QTimer::singleShot(500, this, [this]() {
+            m_countdownLabel->hide();
+            capturePhoto();
+        });
+    }
+}
+
+void MainWindow::onCameraPhotoReady(const QPixmap& photo, const QString& filePath) {
+    qDebug() << "Photo captured successfully:" << filePath;
+    
+    // Store photo in session data
+    if (m_currentSessionData) {
+        m_currentSessionData->capturedPhotoPath = filePath;
+    }
+    
+    // Hide preview, show captured photo
+    m_cameraPreviewWidget->hide();
+    m_capturedPhotoLabel->setPixmap(photo.scaled(
+        m_capturedPhotoLabel->size(), 
+        Qt::KeepAspectRatio, 
+        Qt::SmoothTransformation
+    ));
+    m_capturedPhotoLabel->show();
+    
+    // Update button visibility
+    m_takePhotoButton->hide();
+    m_retakeButton->show();
+    
+    // Show continue button
+    QWidget* cameraScreen = m_cameraScreenWidget;
+    QList<QPushButton*> buttons = cameraScreen->findChildren<QPushButton*>();
+    for (QPushButton* button : buttons) {
+        if (button->text() == "Continue") {
+            button->show();
+            break;
+        }
+    }
+}
+
+void MainWindow::onCameraError(const QString& errorMessage) {
+    qWarning() << "Camera error:" << errorMessage;
+    
+    // Show error to user (you might want to create a proper error dialog)
+    m_countdownLabel->setText("Error!");
+    m_countdownLabel->setStyleSheet(
+        "QLabel { "
+        "color: red; "
+        "background-color: rgba(255, 255, 255, 200); "
+        "border-radius: 10px; "
+        "font-size: 24px; "
+        "font-weight: bold; "
+        "padding: 10px; "
+        "}"
+    );
+    m_countdownLabel->show();
+    
+    // Hide error after 3 seconds
+    QTimer::singleShot(3000, this, [this]() {
+        m_countdownLabel->hide();
+        // Reset countdown label style
+        m_countdownLabel->setStyleSheet(
+            "QLabel { "
+            "color: white; "
+            "background-color: rgba(0, 0, 0, 128); "
+            "border-radius: 50px; "
+            "font-size: 72px; "
+            "font-weight: bold; "
+            "min-width: 100px; "
+            "min-height: 100px; "
+            "}"
+        );
+    });
+    
+    stopCountdown();
+}
+
+
 
 // --- Session Management ---
 void MainWindow::startNewSession() {
