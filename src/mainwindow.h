@@ -6,6 +6,7 @@
 #include <map>
 #include <QString>
 #include <QPixmap>
+#include <qwidget.h>
 
 class QStackedWidget;
 class QPushButton;
@@ -27,6 +28,7 @@ public:
 private slots:
     // Slots for button clicks
     void onStartButtonClicked();
+    void onExitButtonClicked();
     void onWeaponSelected(const QString& weaponId);
     void onLandSelected(const QString& landId);
     void onCompanionSelected(const QString& companionId);
@@ -40,7 +42,8 @@ private:
     QWidget* createCompanionChoiceScreen();
     QWidget* createNameEntryScreen();
 
-    QWidget* createChoiceScreen(const QString& title, 
+    QWidget* createChoiceScreen(
+                                const QString& title, 
                                 const QString& categoryPrefix, 
                                 int itemCount, 
                                 const char* slot);
@@ -56,6 +59,7 @@ private:
     QStackedWidget *m_stackedWidget;
 
     QPushButton *m_startButton;
+    QPushButton *m_exitButton;
 
     // Name Entry Screen
     QLineEdit *m_nameLineEdit;

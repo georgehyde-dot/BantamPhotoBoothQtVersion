@@ -1,4 +1,4 @@
-#include "mainwindow.h"
+#include "./mainwindow.h"
 #include "photosessiondata.h" // Include our session data struct
 
 #include <QApplication> // For quit
@@ -8,6 +8,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QStackedWidget>
+#include <qwidget.h>
 #include <utility>
 #include <vector>
 #include <QPixmap>
@@ -15,6 +16,8 @@
 #include <QDebug>
 #include <QDateTime> // For PhotoSessionData
 #include <QScreen>
+#include <QString>
+#include <QWidget>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent) {
@@ -77,30 +80,39 @@ void MainWindow::setupUi() {
 }
 
 QWidget* MainWindow::createStartScreen() {
-    QWidget *widget = new QWidget;
+    QWidget *widget = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(widget);
     layout->setContentsMargins(50, 50, 50, 50); // Add some padding
 
     m_startButton = new QPushButton("START PHOTO BOOTH", widget);
     m_startButton->setMinimumSize(300, 100); // Make button larger
+
     QFont startFont = m_startButton->font();
     startFont.setPointSize(24);
     m_startButton->setFont(startFont);
     connect(m_startButton, &QPushButton::clicked, this, &MainWindow::onStartButtonClicked);
 
+    m_exitButton = new QPushButton("EXIT", widget);
+    m_exitButton->setMinimumSize(100, 100);
+    QFont exitFont = m_exitButton->font();
+    exitFont.setPointSize(16);
+    connect(m_exitButton, &QPushButton::clicked, this, &MainWindow::onExitButtonClicked);
+
     layout->addStretch(); 
     layout->addWidget(m_startButton, 0, Qt::AlignCenter);
+    layout->addWidget(m_exitButton, 0, Qt::AlignTop | Qt::AlignRight);
     layout->addStretch();
 
     widget->setLayout(layout);
     return widget;
 }
 
-QWidget* MainWindow::createChoiceScreen(const QString& title,
+QWidget* MainWindow::createChoiceScreen(
+                                        const QString& title,
                                         const QString& categoryPrefix,
                                         int itemCount, 
                                         const char* slot) {
-    QWidget *widget = new QWidget;
+    QWidget *widget = new QWidget();
     QVBoxLayout *mainLayout = new QVBoxLayout(widget);
     mainLayout->setContentsMargins(50, 50, 50, 50);
     mainLayout->setSpacing(30);
@@ -112,7 +124,7 @@ QWidget* MainWindow::createChoiceScreen(const QString& title,
     promptLabel->setFont(promptFont);
     mainLayout->addWidget(promptLabel, 0, Qt::AlignCenter);
 
-    QHBoxLayout *imageButtonsLayout = new QHBoxLayout();
+    QHBoxLayout *imageButtonsLayout = new QHBoxLayout(widget);
     imageButtonsLayout->setSpacing(20);
 
     for (int i = 1; i <= itemCount; ++i) {
@@ -155,7 +167,7 @@ QWidget* MainWindow::createChoiceScreen(const QString& title,
 }
 
 QWidget* MainWindow::createNameEntryScreen() {
-    QWidget *widget = new QWidget;
+    QWidget *widget = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(widget);
     layout->setContentsMargins(50, 50, 50, 50);
     layout->setSpacing(20);
@@ -195,7 +207,11 @@ void MainWindow::onStartButtonClicked() {
         m_stackedWidget->setCurrentIndex(1);
     }
 }
-
+void MainWindow::onExitButtonClicked() {
+    qDebug() << "Exit button clicked.";
+    QApplication::closeAllWindows();
+    QApplication::quit();
+}
 void MainWindow::onWeaponSelected(const QString& weaponId) {
     qDebug() << "Weapon Selected: " << weaponId;
      if (m_currentSessionData){ 
@@ -253,6 +269,10 @@ void MainWindow::processNameEntry() {
 
 void MainWindow::returnToStartScreen() {
     m_currentSessionData.reset(); // Destroys current session data, calling its destructor
+    if (QApplication::inputMethod()->isVisible()) {
+        QApplication::inputMethod()->hide();
+    }
+    QApplication::inputMethod()->reset();
     if (m_nameLineEdit) m_nameLineEdit->clear();
     m_stackedWidget->setCurrentIndex(0); // Go back to start screen
     qDebug() << "Returned to start screen. Session data cleared.";
